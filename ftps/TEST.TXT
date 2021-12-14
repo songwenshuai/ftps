@@ -1,0 +1,150 @@
+/*********************************************************************
+*
+*       Configuration
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Prototypes
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Local functions
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Static functions
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Macros
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Configuration, default values
+*
+**********************************************************************
+*/
+
+/*********************************************************************
+*
+*       Extern data
+*
+**********************************************************************
+*/
+
+typedef struct {
+  unsigned Pos;
+  char     c;
+} TRUNCATE_INFO;
+
+static char _acBaseDir[256] = "/home/wssong/VSilicon/Project/Github/CMAKE_CROSSCOMPILING/";
+
+/*********************************************************************
+*
+*       _ConvertFileName
+*/
+static void _ConvertFileName(char* sDest, const char* sSrc, unsigned BufferSize) {
+  char c;
+  const char* s;
+  uint32_t i;
+
+  //
+  // If sSrc starts with a '/' skip it.
+  //
+  if (sSrc[0] == '/') {
+    s = sSrc + 1;
+  } else {
+    s = sSrc;
+  }
+  //
+  // Convert given filename into Windows filename.
+  // e.g.:  "/pub/temp.txt"  -> "/pub/temp.txt"
+  //
+  strncpy(sDest, _acBaseDir, BufferSize);
+  *(sDest + BufferSize - 1) = '\0';
+  i = strlen(sDest);
+  while(1) {
+    c = *s++;
+    if (c == '/') {
+      c = '/';
+    }
+    *(sDest + i++) = c;
+    if (c == 0) {
+      break;
+    }
+  }
+}
+
+/*********************************************************************
+*
+*       _TruncateToDirName()
+*
+*  Function description
+*    Truncates a path to its dirname.
+*
+*  Parameters
+*    sPath         : Path to truncate to dirname.
+*    NumBytesToSkip: Number of bytes to skip from the end (not counting
+*                    the string termination).
+*    pInfo         : Pointer to element of TRUNCATE_INFO that can be
+*                    used to restore the original string if needed.
+*                    Can be NULL.
+*/
+static void _TruncateToDirName(char* sPath, unsigned NumBytesToSkip, TRUNCATE_INFO* pInfo) {
+  unsigned Len;
+
+  Len = strlen(sPath) - NumBytesToSkip;
+  //
+  // Search for '/' from the end of the string.
+  //
+  do {
+    Len--;
+  } while (*(sPath + Len) != '/');
+  Len++;
+  if (pInfo != NULL) {
+    //
+    // Save which character was replaced and where.
+    //
+    pInfo->Pos = Len;
+    pInfo->c   = *(sPath + Len);
+  }
+  *(sPath + Len) = '\0';
+}
+
+/*********************************************************************
+*
+*       _FS_WIN32_RenameFile
+*/
+static int _FS_WIN32_RenameFile(const char* sOldFilename, const char* sNewFilename) {
+  char acOldFilename[256];
+  char acNewFilename[256];
+  unsigned      Len;
+  unsigned      LenNew;
+  TRUNCATE_INFO TruncInfo;
+
+  _ConvertFileName(acOldFilename, sOldFilename, sizeof(acOldFilename));
+  strncpy(acNewFilename, acOldFilename, sizeof(acNewFilename));
+  _TruncateToDirName(acNewFilename, 1, &TruncInfo);  // Get directory by skipping last char (possible '\\' and searching until next '\\').
+  Len    = strlen(acNewFilename);
+  LenNew = strlen(sNewFilename);
+  if ((Len + LenNew) >= sizeof(acNewFilename)) {
+    return -1;  // New filename does not fit into buffer.
+  }
+  strcat(acNewFilename, sNewFilename);
+  return rename(acOldFilename, acNewFilename);
+}
